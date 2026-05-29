@@ -1,4 +1,3 @@
-feat: site is live
 
 + volkansenol.com launched
 + lifelog is now public
