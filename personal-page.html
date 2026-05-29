@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>volkansenol — lifelog</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,300;0,400;0,500;1,400&family=Lora:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #faf9f7; --surface: #f3f1ee; --border: #e2ddd8;
+    --text: #1a1816; --muted: #8a857e; --faint: #b8b2ab;
+    --accent: #2d6a4f; --accent-light: #e8f5ee;
+    --add: #2d6a4f; --del: #c0392b; --warn: #b45309;
+    --mono: 'IBM Plex Mono', monospace;
+    --serif: 'Lora', Georgia, serif;
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body { background: var(--bg); color: var(--text); font-family: var(--serif); font-size: 15px; line-height: 1.7; min-height: 100vh; }
+  .layout { display: grid; grid-template-columns: 220px 1fr; min-height: 100vh; }
+  @media (max-width: 720px) { .layout { grid-template-columns: 1fr; } .sidebar { display: none; } .mobile-header { display: flex !important; } }
+
+  .sidebar { border-right: 1px solid var(--border); padding: 48px 28px; position: sticky; top: 0; height: 100vh; overflow-y: auto; display: flex; flex-direction: column; gap: 40px; }
+  .avatar { width: 52px; height: 52px; border-radius: 50%; background: var(--surface); border: 1.5px solid var(--border); display: flex; align-items: center; justify-content: center; font-family: var(--mono); font-size: 18px; color: var(--muted); }
+  .profile-name { font-family: var(--serif); font-size: 16px; font-weight: 500; color: var(--text); line-height: 1.2; margin-top: 12px; }
+  .profile-handle { font-family: var(--mono); font-size: 11px; color: var(--accent); }
+  .nav { display: flex; flex-direction: column; gap: 2px; }
+  .nav a { font-family: var(--mono); font-size: 11px; color: var(--muted); text-decoration: none; padding: 6px 0; display: flex; align-items: center; gap: 8px; transition: color 0.15s; letter-spacing: 0.5px; }
+  .nav a::before { content: attr(data-prefix); color: var(--faint); }
+  .nav a:hover, .nav a.active { color: var(--accent); }
+  .sidebar-stats { margin-top: auto; border-top: 1px solid var(--border); padding-top: 20px; display: flex; flex-direction: column; gap: 8px; }
+  .stat { font-family: var(--mono); font-size: 10px; color: var(--faint); display: flex; justify-content: space-between; }
+  .stat span:last-child { color: var(--muted); }
+
+  .mobile-header { display: none; padding: 20px 24px; border-bottom: 1px solid var(--border); align-items: center; }
+  .mobile-name { font-family: var(--mono); font-size: 13px; color: var(--text); }
+
+  .main { padding: 48px 56px; max-width: 740px; }
+  @media (max-width: 900px) { .main { padding: 40px 32px; } }
+
+  .section { margin-bottom: 72px; opacity: 0; transform: translateY(12px); animation: fadeUp 0.4s ease forwards; }
+  .section:nth-child(1) { animation-delay: 0.05s; }
+  .section:nth-child(2) { animation-delay: 0.12s; }
+  .section:nth-child(3) { animation-delay: 0.19s; }
+  .section:nth-child(4) { animation-delay: 0.26s; }
+  @keyframes fadeUp { to { opacity: 1; transform: translateY(0); } }
+
+  .section-label { font-family: var(--mono); font-size: 10px; letter-spacing: 3px; text-transform: uppercase; color: var(--faint); margin-bottom: 24px; display: flex; align-items: center; gap: 12px; }
+  .section-label::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+  .about-intro { font-size: 22px; line-height: 1.5; font-weight: 400; color: var(--text); margin-bottom: 20px; font-style: italic; }
+  .about-body { color: var(--muted); font-size: 14px; line-height: 1.8; max-width: 540px; }
+  .about-meta { margin-top: 24px; display: flex; gap: 24px; flex-wrap: wrap; }
+  .meta-item { font-family: var(--mono); font-size: 11px; color: var(--faint); display: flex; align-items: center; gap: 6px; }
+  .meta-item a { color: var(--accent); text-decoration: none; }
+  .meta-item a:hover { text-decoration: underline; }
+  code { font-family: var(--mono); font-size: 12px; background: var(--surface); padding: 1px 5px; border-radius: 3px; }
+
+  .git-log { display: flex; flex-direction: column; position: relative; }
+  .git-log::before { content: ''; position: absolute; left: 7px; top: 12px; bottom: 12px; width: 1px; background: var(--border); }
+
+  .commit { display: grid; grid-template-columns: 16px 1fr; gap: 0 20px; padding: 0 0 32px; position: relative; cursor: pointer; }
+  .commit-dot { width: 15px; height: 15px; border-radius: 50%; background: var(--bg); border: 1.5px solid var(--border); margin-top: 3px; flex-shrink: 0; position: relative; z-index: 1; transition: border-color 0.2s, background 0.2s; }
+  .commit:hover .commit-dot { border-color: var(--accent); background: var(--accent-light); }
+  .commit-dot.type-feat { border-color: var(--add); }
+  .commit-dot.type-fix { border-color: var(--warn); }
+  .commit-dot.type-refactor { border-color: #6366f1; }
+  .commit-dot.type-init { border-color: var(--accent); background: var(--accent-light); }
+
+  .commit-header { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-bottom: 6px; }
+  .commit-hash { font-family: var(--mono); font-size: 10px; color: var(--accent); background: var(--accent-light); padding: 2px 6px; border-radius: 3px; letter-spacing: 0.5px; flex-shrink: 0; }
+  .commit-msg { font-family: var(--mono); font-size: 13px; color: var(--text); font-weight: 500; }
+  .commit-date { font-family: var(--mono); font-size: 10px; color: var(--faint); margin-left: auto; flex-shrink: 0; }
+
+  .commit-diff { background: var(--surface); border: 1px solid var(--border); border-radius: 4px; padding: 12px 14px; margin-top: 10px; font-family: var(--mono); font-size: 12px; line-height: 1.8; display: none; }
+  .commit.open .commit-diff { display: block; }
+  .diff-line { display: block; white-space: pre-wrap; word-break: break-word; }
+  .diff-add { color: var(--add); }
+  .diff-add::before { content: '+ '; }
+  .diff-del { color: var(--del); opacity: 0.7; }
+  .diff-del::before { content: '- '; }
+  .diff-ctx { color: var(--muted); }
+  .diff-ctx::before { content: '  '; }
+
+  .commit-tags { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
+  .tag { font-family: var(--mono); font-size: 9px; padding: 2px 7px; border-radius: 20px; background: var(--surface); border: 1px solid var(--border); color: var(--muted); letter-spacing: 0.5px; }
+
+  .log-status { font-family: var(--mono); font-size: 12px; color: var(--muted); padding: 16px 0; display: flex; align-items: center; gap: 10px; }
+  .spinner { width: 12px; height: 12px; border: 1.5px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.7s linear infinite; flex-shrink: 0; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .hint { font-family: var(--mono); font-size: 11px; color: var(--faint); margin-top: 16px; padding: 12px 14px; background: var(--surface); border: 1px solid var(--border); border-radius: 4px; line-height: 1.8; }
+  .hint strong { color: var(--muted); }
+
+  .skills-grid { display: flex; flex-direction: column; gap: 16px; }
+  .skill-row { display: grid; grid-template-columns: 120px 1fr 40px; align-items: center; gap: 16px; }
+  .skill-name { font-family: var(--mono); font-size: 11px; color: var(--muted); letter-spacing: 0.5px; }
+  .skill-bar-wrap { height: 3px; background: var(--border); border-radius: 2px; overflow: hidden; }
+  .skill-bar { height: 100%; background: var(--accent); border-radius: 2px; transform-origin: left; animation: growBar 0.8s ease forwards; transform: scaleX(0); }
+  @keyframes growBar { to { transform: scaleX(1); } }
+  .skill-pct { font-family: var(--mono); font-size: 10px; color: var(--faint); text-align: right; }
+
+  .projects { display: flex; flex-direction: column; gap: 1px; background: var(--border); border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+  .project { background: var(--bg); padding: 16px 20px; display: grid; grid-template-columns: 1fr auto; gap: 12px; align-items: start; transition: background 0.15s; }
+  .project:hover { background: var(--surface); }
+  .project-name { font-family: var(--mono); font-size: 13px; color: var(--text); margin-bottom: 4px; }
+  .project-desc { font-size: 12px; color: var(--muted); line-height: 1.5; }
+  .project-stack { display: flex; gap: 4px; margin-top: 8px; flex-wrap: wrap; }
+  .project-link { font-family: var(--mono); font-size: 10px; color: var(--accent); text-decoration: none; padding: 3px 8px; border: 1px solid var(--border); border-radius: 3px; white-space: nowrap; transition: border-color 0.15s; }
+  .project-link:hover { border-color: var(--accent); }
+
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+</style>
+</head>
+<body>
+<div class="layout">
+
+  <aside class="sidebar">
+    <div>
+      <div class="avatar">VS</div>
+      <div class="profile-name">Volkan Şenol</div>
+      <div class="profile-handle">@volkansenol</div>
+    </div>
+    <nav class="nav">
+      <a href="#about" data-prefix="~/">about</a>
+      <a href="#log" data-prefix="~/">log</a>
+      <a href="#projects" data-prefix="~/">projects</a>
+      <a href="#skills" data-prefix="~/">skills</a>
+    </nav>
+    <div class="sidebar-stats">
+      <div class="stat"><span>repo</span><span>lifelog</span></div>
+      <div class="stat"><span>commits</span><span id="commit-count">—</span></div>
+      <div class="stat"><span>branch</span><span>main</span></div>
+      <div class="stat"><span>last push</span><span id="last-push">—</span></div>
+    </div>
+  </aside>
+
+  <div class="mobile-header">
+    <span class="mobile-name">volkansenol / lifelog</span>
+  </div>
+
+  <main class="main">
+
+    <section class="section" id="about">
+      <div class="section-label">about</div>
+      <p class="about-intro">"Writing life as commits."</p>
+      <p class="about-body">
+        This page reads directly from the <code>volkansenol/lifelog</code> repo.
+        Every git commit is a diary entry. Push to write — the log updates automatically.
+      </p>
+      <div class="about-meta">
+        <div class="meta-item">🔗 <a href="https://github.com/volkansenol/lifelog" target="_blank">github.com/volkansenol/lifelog</a></div>
+      </div>
+    </section>
+
+    <section class="section" id="log">
+      <div class="section-label">diary — git log</div>
+      <div class="git-log" id="git-log">
+        <div class="log-status" id="log-status">
+          <div class="spinner"></div>
+          <span>fetching commits…</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="projects">
+      <div class="section-label">projects</div>
+      <div class="projects">
+        <div class="project">
+          <div>
+            <div class="project-name">lifelog</div>
+            <div class="project-desc">This page. A personal diary written as git commits.</div>
+            <div class="project-stack">
+              <span class="tag">HTML</span>
+              <span class="tag">GitHub API</span>
+              <span class="tag">GitHub Pages</span>
+            </div>
+          </div>
+          <a href="https://github.com/volkansenol/lifelog" target="_blank" class="project-link">↗ repo</a>
+        </div>
+        <div class="project">
+          <div>
+            <div class="project-name">your-next-project</div>
+            <div class="project-desc">Add your projects here by editing the HTML.</div>
+            <div class="project-stack"><span class="tag">WIP</span></div>
+          </div>
+          <a href="#" class="project-link">↗ view</a>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="skills">
+      <div class="section-label">skills</div>
+      <div class="skills-grid" id="skills-grid"></div>
+    </section>
+
+  </main>
+</div>
+
+<script>
+const GITHUB_USER = 'volkansenol';
+const GITHUB_REPO = 'lifelog';
+
+// Edit your skills here
+const skills = [
+  { name: 'TypeScript',   pct: 85 },
+  { name: 'React / Next', pct: 80 },
+  { name: 'Node.js',      pct: 75 },
+  { name: 'Python',       pct: 65 },
+  { name: 'Design',       pct: 60 },
+  { name: 'Writing',      pct: 70 },
+];
+
+// Render skills
+const skillGrid = document.getElementById('skills-grid');
+skills.forEach((s, i) => {
+  const row = document.createElement('div');
+  row.className = 'skill-row';
+  row.innerHTML = `
+    <span class="skill-name">${s.name}</span>
+    <div class="skill-bar-wrap">
+      <div class="skill-bar" style="width:${s.pct}%;animation-delay:${0.3 + i * 0.08}s"></div>
+    </div>
+    <span class="skill-pct">${s.pct}</span>`;
+  skillGrid.appendChild(row);
+});
+
+function parseType(msg) {
+  const m = msg.match(/^(feat|fix|chore|refactor|init|docs|style|test|perf|build)(\(.*?\))?:/i);
+  return m ? m[1].toLowerCase() : 'chore';
+}
+
+function parseDiff(body) {
+  if (!body) return '';
+  return body.split('\n').map(line => {
+    const l = line.trim();
+    if (!l) return '';
+    if (l.startsWith('+')) return `<span class="diff-line diff-add">${esc(l.slice(1).trim())}</span>`;
+    if (l.startsWith('-')) return `<span class="diff-line diff-del">${esc(l.slice(1).trim())}</span>`;
+    return `<span class="diff-line diff-ctx">${esc(l)}</span>`;
+  }).filter(Boolean).join('');
+}
+
+function esc(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function relDate(iso) {
+  const diff = Math.floor((Date.now() - new Date(iso)) / 1000);
+  if (diff < 60) return 'just now';
+  if (diff < 3600) return Math.floor(diff/60) + 'm ago';
+  if (diff < 86400) return Math.floor(diff/3600) + 'h ago';
+  if (diff < 604800) return Math.floor(diff/86400) + 'd ago';
+  return new Date(iso).toISOString().slice(0,10);
+}
+
+async function loadCommits() {
+  const statusEl = document.getElementById('log-status');
+  const logEl = document.getElementById('git-log');
+  try {
+    const res = await fetch(
+      `https://api.github.com/repos/${GITHUB_USER}/${GITHUB_REPO}/commits?per_page=30`,
+      { headers: { Accept: 'application/vnd.github.v3+json' } }
+    );
+    if (res.status === 404) throw new Error('Repo not found — make sure volkansenol/lifelog is public.');
+    if (res.status === 403) throw new Error('GitHub rate limit. Wait a minute and refresh.');
+    if (!res.ok) throw new Error('GitHub API error ' + res.status);
+
+    const commits = await res.json();
+    statusEl.remove();
+
+    if (!commits.length) {
+      logEl.innerHTML = `
+        <div class="log-status">No commits yet.</div>
+        <div class="hint">
+          <strong>How to write a diary entry:</strong><br>
+          git commit -m "feat: started something new"<br><br>
+          + what changed<br>
+          - what you left behind<br>
+          // a note to self
+        </div>`;
+      return;
+    }
+
+    document.getElementById('commit-count').textContent = commits.length + (commits.length === 30 ? '+' : '');
+    document.getElementById('last-push').textContent = relDate(commits[0].commit.author.date);
+
+    commits.forEach((c, i) => {
+      const lines = c.commit.message.split('\n');
+      const headline = lines[0];
+      const body = lines.slice(2).join('\n').trim();
+      const hash = c.sha.slice(0, 7);
+      const type = parseType(headline);
+      const diff = parseDiff(body);
+
+      const el = document.createElement('div');
+      el.className = 'commit';
+      el.style.cssText = `opacity:0;transform:translateY(8px);animation:fadeUp 0.35s ease ${0.05+i*0.04}s forwards`;
+      if (diff) el.onclick = () => el.classList.toggle('open');
+      el.innerHTML = `
+        <div class="commit-dot type-${type}"></div>
+        <div class="commit-body">
+          <div class="commit-header">
+            <span class="commit-hash">${hash}</span>
+            <span class="commit-msg">${esc(headline)}</span>
+            <span class="commit-date">${relDate(c.commit.author.date)}</span>
+          </div>
+          <div class="commit-tags"><span class="tag">${type}</span></div>
+          ${diff ? `<div class="commit-diff">${diff}</div>` : ''}
+        </div>`;
+      logEl.appendChild(el);
+    });
+  } catch (err) {
+    statusEl.innerHTML = `<span style="color:var(--del);font-family:var(--mono);font-size:11px;">✗ ${err.message}</span>`;
+  }
+}
+
+// Active nav highlight
+const observer = new IntersectionObserver(entries => {
+  entries.forEach(e => {
+    if (e.isIntersecting) {
+      document.querySelectorAll('.nav a').forEach(a => a.classList.remove('active'));
+      const a = document.querySelector(`.nav a[href="#${e.target.id}"]`);
+      if (a) a.classList.add('active');
+    }
+  });
+}, { threshold: 0.4 });
+document.querySelectorAll('.section').forEach(s => observer.observe(s));
+
+loadCommits();
+</script>
+</body>
+</html>
