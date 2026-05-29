@@ -59,9 +59,10 @@
   .git-log { display: flex; flex-direction: column; position: relative; }
   .git-log::before { content: ''; position: absolute; left: 7px; top: 12px; bottom: 12px; width: 1px; background: var(--border); }
 
-  .commit { display: grid; grid-template-columns: 16px 1fr; gap: 0 20px; padding: 0 0 32px; position: relative; cursor: pointer; }
+  .commit { display: grid; grid-template-columns: 16px 1fr; gap: 0 20px; padding: 0 0 32px; position: relative; }
+  .commit.expandable { cursor: pointer; }
+  .commit.expandable:hover .commit-dot { border-color: var(--accent); background: var(--accent-light); }
   .commit-dot { width: 15px; height: 15px; border-radius: 50%; background: var(--bg); border: 1.5px solid var(--border); margin-top: 3px; flex-shrink: 0; position: relative; z-index: 1; transition: border-color 0.2s, background 0.2s; }
-  .commit:hover .commit-dot { border-color: var(--accent); background: var(--accent-light); }
   .commit-dot.type-feat { border-color: var(--add); }
   .commit-dot.type-fix { border-color: var(--warn); }
   .commit-dot.type-refactor { border-color: #6366f1; }
@@ -72,8 +73,23 @@
   .commit-msg { font-family: var(--mono); font-size: 13px; color: var(--text); font-weight: 500; }
   .commit-date { font-family: var(--mono); font-size: 10px; color: var(--faint); margin-left: auto; flex-shrink: 0; }
 
-  .commit-diff { background: var(--surface); border: 1px solid var(--border); border-radius: 4px; padding: 12px 14px; margin-top: 10px; font-family: var(--mono); font-size: 12px; line-height: 1.8; display: none; }
-  .commit.open .commit-diff { display: block; }
+  .commit-footer { display: flex; align-items: center; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+  .commit-expand { font-family: var(--mono); font-size: 9px; color: var(--faint); letter-spacing: 0.3px; margin-left: auto; }
+  .commit.open .commit-expand::before { content: '▾ '; }
+  .commit.expandable:not(.open) .commit-expand::before { content: '▸ '; }
+  .commit-detail { display: none; margin-top: 10px; flex-direction: column; gap: 10px; }
+  .commit.open .commit-detail { display: flex; }
+  .detail-section { background: var(--surface); border: 1px solid var(--border); border-radius: 4px; overflow: hidden; }
+  .detail-label { font-family: var(--mono); font-size: 9px; letter-spacing: 1px; text-transform: uppercase; color: var(--faint); padding: 8px 12px; border-bottom: 1px solid var(--border); background: var(--bg); }
+  .detail-body { padding: 12px 14px; font-family: var(--mono); font-size: 12px; line-height: 1.8; }
+  .detail-prose p { color: var(--muted); margin: 0 0 0.6em; }
+  .detail-prose p:last-child { margin-bottom: 0; }
+  .detail-error { font-family: var(--mono); font-size: 11px; color: var(--del); padding: 12px 14px; }
+  .patch-file + .patch-file { border-top: 1px solid var(--border); }
+  .patch-file-name { font-family: var(--mono); font-size: 11px; color: var(--text); padding: 8px 12px; background: var(--bg); border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .patch-status { font-size: 9px; color: var(--faint); text-transform: uppercase; letter-spacing: 0.5px; }
+  .patch-body { padding: 10px 12px; font-family: var(--mono); font-size: 11px; line-height: 1.65; max-height: 280px; overflow: auto; }
+  .patch-empty { font-family: var(--mono); font-size: 11px; color: var(--faint); padding: 12px 14px; }
   .diff-line { display: block; white-space: pre-wrap; word-break: break-word; }
   .diff-add { color: var(--add); }
   .diff-add::before { content: '+ '; }
@@ -81,8 +97,11 @@
   .diff-del::before { content: '- '; }
   .diff-ctx { color: var(--muted); }
   .diff-ctx::before { content: '  '; }
+  .diff-hunk { color: var(--accent); opacity: 0.85; }
+  .diff-note { color: var(--warn); font-style: italic; }
+  .diff-note::before { content: '// '; }
 
-  .commit-tags { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
+  .commit-tags { display: flex; gap: 6px; flex-wrap: wrap; }
   .tag { font-family: var(--mono); font-size: 9px; padding: 2px 7px; border-radius: 20px; background: var(--surface); border: 1px solid var(--border); color: var(--muted); letter-spacing: 0.5px; }
 
   .log-status { font-family: var(--mono); font-size: 12px; color: var(--muted); padding: 16px 0; display: flex; align-items: center; gap: 10px; }
@@ -148,7 +167,7 @@
       <p class="about-intro">"Writing life as commits."</p>
       <p class="about-body">
         This page reads directly from the <code>volkansenol/lifelog</code> repo.
-        Every git commit is a diary entry. Push to write — the log updates automatically.
+        Every git commit is a diary entry. Click a commit for file changes; add a message body for a written entry.
       </p>
       <div class="about-meta">
         <div class="meta-item">🔗 <a href="https://github.com/volkansenol/lifelog" target="_blank">github.com/volkansenol/lifelog</a></div>
@@ -232,15 +251,114 @@ function parseType(msg) {
   return m ? m[1].toLowerCase() : 'chore';
 }
 
+function getCommitBody(message) {
+  const lines = message.split('\n');
+  if (lines.length <= 1) return '';
+  let start = 1;
+  while (start < lines.length && lines[start].trim() === '') start++;
+  if (start >= lines.length) return '';
+  return lines.slice(start).join('\n').trim();
+}
+
+function isDiaryDiffLine(line) {
+  const t = line.trim();
+  return t.startsWith('+') || t.startsWith('-') || t.startsWith('//');
+}
+
+function bodyHasDiaryDiff(body) {
+  return body.split('\n').some(isDiaryDiffLine);
+}
+
 function parseDiff(body) {
   if (!body) return '';
   return body.split('\n').map(line => {
     const l = line.trim();
     if (!l) return '';
+    if (l.startsWith('//')) return `<span class="diff-line diff-note">${esc(l.slice(2).trim())}</span>`;
     if (l.startsWith('+')) return `<span class="diff-line diff-add">${esc(l.slice(1).trim())}</span>`;
     if (l.startsWith('-')) return `<span class="diff-line diff-del">${esc(l.slice(1).trim())}</span>`;
     return `<span class="diff-line diff-ctx">${esc(l)}</span>`;
   }).filter(Boolean).join('');
+}
+
+function renderMessageDetail(body) {
+  if (!body) return '';
+  if (bodyHasDiaryDiff(body)) {
+    return `<div class="detail-section"><div class="detail-label">entry</div><div class="detail-body">${parseDiff(body)}</div></div>`;
+  }
+  const prose = body.split('\n').map(p => `<p>${esc(p)}</p>`).join('');
+  return `<div class="detail-section"><div class="detail-label">entry</div><div class="detail-body detail-prose">${prose}</div></div>`;
+}
+
+function renderPatch(patch) {
+  if (!patch) return '<div class="patch-empty">No line diff (binary or too large).</div>';
+  return patch.split('\n').map(line => {
+    if (line.startsWith('@@')) return `<span class="diff-line diff-hunk">${esc(line)}</span>`;
+    if (line.startsWith('+') && !line.startsWith('+++')) return `<span class="diff-line diff-add">${esc(line.slice(1))}</span>`;
+    if (line.startsWith('-') && !line.startsWith('---')) return `<span class="diff-line diff-del">${esc(line.slice(1))}</span>`;
+    if (line.startsWith(' ')) return `<span class="diff-line diff-ctx">${esc(line.slice(1))}</span>`;
+    return `<span class="diff-line diff-ctx">${esc(line)}</span>`;
+  }).join('');
+}
+
+function renderFiles(files) {
+  if (!files || !files.length) return '<div class="patch-empty">No file changes in this commit.</div>';
+  return files.map(f => `
+    <div class="patch-file">
+      <div class="patch-file-name">${esc(f.filename)} <span class="patch-status">${esc(f.status)}</span></div>
+      <div class="patch-body">${renderPatch(f.patch)}</div>
+    </div>`).join('');
+}
+
+const commitDetailCache = new Map();
+
+async function fetchCommitDetail(sha) {
+  if (commitDetailCache.has(sha)) return commitDetailCache.get(sha);
+  const res = await fetch(
+    `https://api.github.com/repos/${GITHUB_USER}/${GITHUB_REPO}/commits/${sha}`,
+    { headers: { Accept: 'application/vnd.github.v3+json' } }
+  );
+  if (res.status === 403) throw new Error('GitHub rate limit. Wait a minute and try again.');
+  if (!res.ok) throw new Error('Could not load commit changes (' + res.status + ')');
+  const data = await res.json();
+  commitDetailCache.set(sha, data);
+  return data;
+}
+
+async function loadCommitPatches(el) {
+  const patchesEl = el.querySelector('.detail-patches');
+  if (!patchesEl || patchesEl.dataset.loaded === 'true' || patchesEl.dataset.loaded === 'loading') return;
+  patchesEl.dataset.loaded = 'loading';
+  patchesEl.innerHTML = '<div class="detail-section"><div class="detail-body"><div class="log-status"><div class="spinner"></div><span>loading changes…</span></div></div></div>';
+  try {
+    const data = await fetchCommitDetail(el.dataset.sha);
+    patchesEl.innerHTML = `<div class="detail-section"><div class="detail-label">changes</div><div class="detail-body" style="padding:0">${renderFiles(data.files)}</div></div>`;
+    patchesEl.dataset.loaded = 'true';
+  } catch (err) {
+    patchesEl.innerHTML = `<div class="detail-error">✗ ${esc(err.message)}</div>`;
+    patchesEl.dataset.loaded = 'error';
+  }
+}
+
+function bindCommitExpand(el) {
+  el.classList.add('expandable');
+  el.setAttribute('role', 'button');
+  el.setAttribute('tabindex', '0');
+  el.setAttribute('aria-expanded', 'false');
+
+  const toggle = () => {
+    const open = el.classList.toggle('open');
+    el.setAttribute('aria-expanded', open ? 'true' : 'false');
+    if (open) loadCommitPatches(el);
+  };
+
+  el.addEventListener('click', toggle);
+  el.addEventListener('keydown', e => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      toggle();
+    }
+  });
 }
 
 function esc(s) {
@@ -276,10 +394,10 @@ async function loadCommits() {
         <div class="log-status">No commits yet.</div>
         <div class="hint">
           <strong>How to write a diary entry:</strong><br>
-          git commit -m "feat: started something new"<br><br>
-          + what changed<br>
+          git commit -m "feat: started something new" -m "+ what changed<br>
           - what you left behind<br>
-          // a note to self
+          // a note to self"<br><br>
+          Click any commit to see file changes from git.
         </div>`;
       return;
     }
@@ -288,17 +406,17 @@ async function loadCommits() {
     document.getElementById('last-push').textContent = relDate(commits[0].commit.author.date);
 
     commits.forEach((c, i) => {
-      const lines = c.commit.message.split('\n');
-      const headline = lines[0];
-      const body = lines.slice(2).join('\n').trim();
+      const message = c.commit.message;
+      const headline = message.split('\n')[0];
+      const body = getCommitBody(message);
       const hash = c.sha.slice(0, 7);
       const type = parseType(headline);
-      const diff = parseDiff(body);
+      const messageDetail = renderMessageDetail(body);
 
       const el = document.createElement('div');
       el.className = 'commit';
+      el.dataset.sha = c.sha;
       el.style.cssText = `opacity:0;transform:translateY(8px);animation:fadeUp 0.35s ease ${0.05+i*0.04}s forwards`;
-      if (diff) el.onclick = () => el.classList.toggle('open');
       el.innerHTML = `
         <div class="commit-dot type-${type}"></div>
         <div class="commit-body">
@@ -307,9 +425,16 @@ async function loadCommits() {
             <span class="commit-msg">${esc(headline)}</span>
             <span class="commit-date">${relDate(c.commit.author.date)}</span>
           </div>
-          <div class="commit-tags"><span class="tag">${type}</span></div>
-          ${diff ? `<div class="commit-diff">${diff}</div>` : ''}
+          <div class="commit-footer">
+            <div class="commit-tags"><span class="tag">${type}</span></div>
+            <span class="commit-expand">details</span>
+          </div>
+          <div class="commit-detail">
+            ${messageDetail}
+            <div class="detail-patches" data-loaded="false"></div>
+          </div>
         </div>`;
+      bindCommitExpand(el);
       logEl.appendChild(el);
     });
   } catch (err) {
